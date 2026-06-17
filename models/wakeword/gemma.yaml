@@ -1,0 +1,10 @@
+model_name: gemma
+target_phrases:
+  - "gemma"
+  - "hey gemma"
+n_samples: 10000
+model:
+  model_type: conv_attention
+  model_size: small
+steps: 20000
+target_fp_per_hour: 0.2
