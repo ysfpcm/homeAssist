@@ -1,5 +1,6 @@
 import sqlite3
 import os
+from contextlib import closing
 
 # Go up one directory so gemma.db stays in the main project root folder
 DB_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "gemma.db")
@@ -13,7 +14,7 @@ def get_db_connection():
 def init_db():
     """Initialize the database tables if they do not exist."""
     print(f"[System - Database]: Initializing database at {DB_FILE}...")
-    with get_db_connection() as conn:
+    with closing(get_db_connection()) as conn, conn:
         cursor = conn.cursor()
         
         # 1. Facial Profiles table
@@ -58,7 +59,7 @@ def init_db():
 def save_note(category, target_person, content):
     """Save a memory/task note to the database."""
     target_person_clean = target_person.strip() if target_person else None
-    with get_db_connection() as conn:
+    with closing(get_db_connection()) as conn, conn:
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO memory_notes (category, target_person, content)
@@ -71,7 +72,7 @@ def save_note(category, target_person, content):
 
 def get_active_notes(target_person=None):
     """Retrieve active notes. Optionally filtered by target person."""
-    with get_db_connection() as conn:
+    with closing(get_db_connection()) as conn, conn:
         cursor = conn.cursor()
         if target_person:
             cursor.execute('''
@@ -91,7 +92,7 @@ def get_active_notes(target_person=None):
 
 def archive_note(note_id):
     """Archive a note by setting its is_active status to 0."""
-    with get_db_connection() as conn:
+    with closing(get_db_connection()) as conn, conn:
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE memory_notes 
@@ -108,7 +109,7 @@ def archive_note(note_id):
 
 def add_face_profile(name, role, encoding_bytes):
     """Add or update a face profile with its 128-float encoding blob."""
-    with get_db_connection() as conn:
+    with closing(get_db_connection()) as conn, conn:
         cursor = conn.cursor()
         cursor.execute('''
             INSERT OR REPLACE INTO facial_profiles (name, role, encoding)
@@ -119,7 +120,7 @@ def add_face_profile(name, role, encoding_bytes):
 
 def get_face_profiles():
     """Retrieve all facial profiles and encodings."""
-    with get_db_connection() as conn:
+    with closing(get_db_connection()) as conn, conn:
         cursor = conn.cursor()
         cursor.execute('SELECT name, role, encoding FROM facial_profiles')
         rows = cursor.fetchall()
@@ -130,7 +131,7 @@ def get_face_profiles():
 def log_event(event_type, source, details):
     """Write an event entry to the system events log."""
     try:
-        with get_db_connection() as conn:
+        with closing(get_db_connection()) as conn, conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO system_events (event_type, source, details)
@@ -142,7 +143,7 @@ def log_event(event_type, source, details):
 
 def get_recent_events(limit=10):
     """Retrieve recent logged events."""
-    with get_db_connection() as conn:
+    with closing(get_db_connection()) as conn, conn:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT * FROM system_events 
