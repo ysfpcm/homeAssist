@@ -1,16 +1,12 @@
 import os
-import sys
-import threading
-
-# Force TTS to use the terminal instead of voice to speed up testing
-os.environ["TTS_PROVIDER"] = "terminal"
-
-# Import required components from the project
-from brain import database
-from main import process_message, console_history
-from brain.llm_client import BASE_SYSTEM_PROMPT
 
 def run_tests():
+    os.environ["TTS_PROVIDER"] = "terminal"
+
+    from brain import database
+    from main import process_message, console_history
+    from brain.llm_client import BASE_SYSTEM_PROMPT
+
     print("==================================================")
     print(" BRAIN TESTING ENVIRONMENT")
     print("==================================================")
