@@ -1,25 +1,18 @@
 import os
 import sys
-import json
 import time
 
-# Add project root directory to path to support brain package imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-try:
-    from deepface import DeepFace
-    import cv2
-    import numpy as np
-    HAS_VISION_LIBS = True
-except ImportError:
-    HAS_VISION_LIBS = False
-
-from eyes.eyes_interface import load_enrolled_faces, get_cosine_distance, THRESHOLD
-
 def main():
-    if not HAS_VISION_LIBS:
+    try:
+        from deepface import DeepFace
+        import cv2
+        import numpy as np
+    except ImportError:
         print("[Error]: Missing vision libraries. Make sure deepface, opencv-python, and numpy are installed.")
         return
+
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from eyes.eyes_interface import load_enrolled_faces, get_cosine_distance, THRESHOLD
 
     print("Loading enrolled faces from database...")
     known_encodings, known_metadata = load_enrolled_faces()
