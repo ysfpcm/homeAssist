@@ -79,13 +79,13 @@ def get_active_notes(target_person=None):
                 SELECT * FROM memory_notes 
                 WHERE is_active = 1 
                   AND (LOWER(target_person) = LOWER(?) OR target_person IS NULL OR target_person = '')
-                ORDER BY created_at DESC
+                ORDER BY created_at DESC, id DESC
             ''', (target_person.strip(),))
         else:
             cursor.execute('''
                 SELECT * FROM memory_notes 
                 WHERE is_active = 1 
-                ORDER BY created_at DESC
+                ORDER BY created_at DESC, id DESC
             ''')
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
@@ -147,7 +147,7 @@ def get_recent_events(limit=10):
         cursor = conn.cursor()
         cursor.execute('''
             SELECT * FROM system_events 
-            ORDER BY timestamp DESC 
+            ORDER BY timestamp DESC, id DESC
             LIMIT ?
         ''', (limit,))
         rows = cursor.fetchall()

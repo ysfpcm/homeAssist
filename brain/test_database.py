@@ -65,6 +65,38 @@ class DatabaseConnectionTests(unittest.TestCase):
         self.assertEqual(database.get_active_notes(), [])
         self.assert_connections_closed()
 
+    def test_active_notes_order_tied_timestamps_by_newest_id(self):
+        latest = database.save_note("todo", "Marc", "latest timestamp")
+        older = database.save_note("todo", "Marc", "older")
+        newer = database.save_note("todo", "Marc", "newer")
+        with contextlib.closing(database.get_db_connection()) as connection, connection:
+            connection.execute("UPDATE memory_notes SET created_at = '2026-01-01 00:00:00'")
+            connection.execute(
+                "UPDATE memory_notes SET created_at = '2026-01-02 00:00:00' WHERE id = ?",
+                (latest,),
+            )
+
+        expected = [latest, newer, older]
+        self.assertEqual([note["id"] for note in database.get_active_notes()], expected)
+        self.assertEqual([note["id"] for note in database.get_active_notes("Marc")], expected)
+        self.assert_connections_closed()
+
+    def test_recent_events_limit_prefers_newest_when_timestamps_tie(self):
+        database.log_event("latest", "test", "")
+        database.log_event("older", "test", "")
+        database.log_event("newer", "test", "")
+        with contextlib.closing(database.get_db_connection()) as connection, connection:
+            connection.execute("UPDATE system_events SET timestamp = '2026-01-01 00:00:00'")
+            connection.execute(
+                "UPDATE system_events SET timestamp = '2026-01-02 00:00:00' WHERE event_type = 'latest'"
+            )
+
+        self.assertEqual(
+            [event["event_type"] for event in database.get_recent_events(2)],
+            ["latest", "newer"],
+        )
+        self.assert_connections_closed()
+
 
 if __name__ == "__main__":
     unittest.main()
