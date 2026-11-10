@@ -35,7 +35,7 @@ def run_brain_cycle(history, tools=None):
     assistant_message = query_brain(history, tools=tools)
     
     # Check for raw JSON tool call fallback in content
-    content = assistant_message.get("content", "").strip()
+    content = (assistant_message.get("content") or "").strip()
     if not assistant_message.get("tool_calls"):
         # Attempt to extract JSON using regex in case the model wrapped it in markdown
         json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
@@ -114,7 +114,7 @@ def run_brain_cycle(history, tools=None):
         assistant_message = query_brain(history)
         history.append(assistant_message)
         
-    return assistant_message.get("content", "")
+    return assistant_message.get("content") or ""
 
 def process_message(user_input, history):
     """Processes user input by injecting database context and running the LLM brain cycle."""
