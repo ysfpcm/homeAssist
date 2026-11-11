@@ -72,9 +72,11 @@ def run_brain_cycle(history, tools=None):
                 response_text = args.get("response_text", "Yes?")
                 # Sanitize smart quotes that can break TTS or terminal output
                 response_text = response_text.replace("’", "'").replace("‘", "'").replace("\ufffd", "'")
-                assistant_message["content"] = response_text
-                assistant_message.pop("tool_calls", None)
-                return response_text
+                if len(assistant_message["tool_calls"]) == 1:
+                    assistant_message["content"] = response_text
+                    assistant_message.pop("tool_calls", None)
+                    return response_text
+                tool_content = response_text
             elif func_name == "execute_smart_home_command":
                 command = args.get("command")
                 if command:

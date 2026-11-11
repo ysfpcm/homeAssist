@@ -81,6 +81,39 @@ class BrainCycleTests(unittest.TestCase):
         with patch.dict(run_brain_cycle.__globals__, {"query_brain": query}):
             self.assertEqual(run_brain_cycle([]), "Hello")
 
+    def test_response_tool_does_not_skip_other_tool_calls(self):
+        response_call = {
+            "id": "response_1",
+            "function": {"name": "respond_to_user", "arguments": {"response_text": "I'll remember that."}},
+        }
+        save_call = {
+            "id": "save_1",
+            "function": {"name": "save_note", "arguments": {
+                "category": "reminder", "target_person": None, "content": "Water the plants",
+            }},
+        }
+        for calls in ([response_call, save_call], [save_call, response_call]):
+            with self.subTest(first=calls[0]["id"]):
+                run_brain_cycle = load_brain_cycle()
+                query = Mock(side_effect=[
+                    {"role": "assistant", "content": None, "tool_calls": calls},
+                    {"role": "assistant", "content": "I've saved your reminder."},
+                ])
+                history = []
+                with patch.dict(run_brain_cycle.__globals__, {"query_brain": query}):
+                    with patch.object(database, "save_note", return_value=42) as save_note:
+                        response = run_brain_cycle(history, tools=[{"type": "function"}])
+
+                save_note.assert_called_once_with("reminder", None, "Water the plants")
+                self.assertEqual(response, "I've saved your reminder.")
+                self.assertEqual(query.call_count, 2)
+                self.assertEqual(history[0]["tool_calls"], calls)
+                self.assertEqual([message["tool_call_id"] for message in history[1:3]],
+                                 [call["id"] for call in calls])
+                tool_results = {message["tool_call_id"]: message["content"] for message in history[1:3]}
+                self.assertEqual(tool_results["response_1"], "I'll remember that.")
+                self.assertEqual(tool_results["save_1"], "Note saved successfully with ID 42.")
+
 
 if __name__ == "__main__":
     unittest.main()
