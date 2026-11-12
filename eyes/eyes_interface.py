@@ -119,18 +119,20 @@ def capture_frame_from_webcam(device_index=0):
     try:
         print("[System - Eyes]: Opening webcam...")
         cap = cv2.VideoCapture(device_index)
-        if not cap.isOpened():
-            print("[Eyes - Error]: Could not open webcam.")
-            return None
-        # Allow webcam to auto-exposure/focus (take 5 frames and throw away)
-        for _ in range(5):
-            cap.read()
-        ret, frame = cap.read()
-        cap.release()
-        if not ret:
-            print("[Eyes - Error]: Failed to read frame from webcam.")
-            return None
-        return frame
+        try:
+            if not cap.isOpened():
+                print("[Eyes - Error]: Could not open webcam.")
+                return None
+            # Allow webcam to auto-exposure/focus (take 5 frames and throw away)
+            for _ in range(5):
+                cap.read()
+            ret, frame = cap.read()
+            if not ret:
+                print("[Eyes - Error]: Failed to read frame from webcam.")
+                return None
+            return frame
+        finally:
+            cap.release()
     except Exception as e:
         print(f"[Eyes - Error]: Failed to capture from webcam: {e}")
         return None
