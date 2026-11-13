@@ -35,6 +35,95 @@ def load_brain_cycle():
 
 
 class BrainCycleTests(unittest.TestCase):
+    def test_history_trimming_drops_complete_old_tool_turn(self):
+        run_brain_cycle = load_brain_cycle()
+        process_message = run_brain_cycle.__globals__["process_message"]
+        history = [
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": "Old request"},
+            {"role": "assistant", "content": None, "tool_calls": [
+                {"id": "old", "function": {"name": "get_active_notes", "arguments": {}}}
+            ]},
+            {"role": "tool", "tool_call_id": "old", "name": "get_active_notes", "content": "[]"},
+            {"role": "user", "content": "Please respond naturally to confirm what you did."},
+            {"role": "assistant", "content": "No notes."},
+        ]
+        for number in range(5):
+            history.extend([
+                {"role": "user", "content": f"Question {number}"},
+                {"role": "assistant", "content": f"Answer {number}"},
+            ])
+
+        query = Mock(return_value={"role": "assistant", "content": "Latest answer"})
+        with patch.dict(run_brain_cycle.__globals__, {"query_brain": query, "get_home_context": Mock(return_value="")}):
+            with patch.object(database, "get_active_notes", return_value=[]):
+                self.assertEqual(process_message("Latest question", history), "Latest answer")
+
+        self.assertEqual(history[1], {"role": "user", "content": "Question 0"})
+        self.assertEqual(history[-2:], [
+            {"role": "user", "content": "Latest question"},
+            {"role": "assistant", "content": "Latest answer"},
+        ])
+        self.assertLessEqual(len(history), 16)
+
+    def test_history_trimming_does_not_start_at_tool_confirmation(self):
+        run_brain_cycle = load_brain_cycle()
+        process_message = run_brain_cycle.__globals__["process_message"]
+        call = {"id": "call_1", "function": {"name": "get_active_notes", "arguments": {}}}
+        history = [
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": "Old request"},
+            {"role": "assistant", "content": None, "tool_calls": [call]},
+            {"role": "tool", "tool_call_id": "call_1", "name": "get_active_notes", "content": "[]"},
+            {"role": "user", "content": "Please respond naturally to confirm what you did."},
+            {"role": "assistant", "content": "No notes."},
+        ]
+        for number in range(4):
+            history.extend([
+                {"role": "user", "content": f"Question {number}"},
+                {"role": "assistant", "content": f"Answer {number}"},
+            ])
+        query = Mock(side_effect=[
+            {"role": "assistant", "content": None, "tool_calls": [call]},
+            {"role": "assistant", "content": "Still no notes."},
+        ])
+        with patch.dict(run_brain_cycle.__globals__, {"query_brain": query, "get_home_context": Mock(return_value="")}):
+            with patch.object(database, "get_active_notes", return_value=[]):
+                self.assertEqual(process_message("Check again", history), "Still no notes.")
+
+        self.assertEqual(history[1], {"role": "user", "content": "Question 0"})
+        self.assertLessEqual(len(history), 16)
+
+    def test_history_trimming_preserves_oversized_latest_tool_turn(self):
+        run_brain_cycle = load_brain_cycle()
+        process_message = run_brain_cycle.__globals__["process_message"]
+        calls = [
+            {"id": f"call_{number}", "function": {"name": "get_active_notes", "arguments": {}}}
+            for number in range(14)
+        ]
+        query = Mock(side_effect=[
+            {"role": "assistant", "content": None, "tool_calls": calls},
+            {"role": "assistant", "content": "No notes."},
+            {"role": "assistant", "content": "Hello."},
+        ])
+        history = [{"role": "system", "content": "system"}]
+        with patch.dict(run_brain_cycle.__globals__, {"query_brain": query, "get_home_context": Mock(return_value="")}):
+            with patch.object(database, "get_active_notes", return_value=[]):
+                self.assertEqual(process_message("Check notes", history), "No notes.")
+
+        self.assertEqual(history[1], {"role": "user", "content": "Check notes"})
+        self.assertEqual(history[2]["tool_calls"], calls)
+        self.assertEqual([message["tool_call_id"] for message in history[3:17]],
+                         [call["id"] for call in calls])
+        self.assertEqual(history[-1]["content"], "No notes.")
+        with patch.dict(run_brain_cycle.__globals__, {"query_brain": query, "get_home_context": Mock(return_value="")}):
+            with patch.object(database, "get_active_notes", return_value=[]):
+                self.assertEqual(process_message("Hello", history), "Hello.")
+        self.assertEqual(history[1:], [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hello."},
+        ])
+
     def test_null_content_with_tool_call_executes_and_returns_response(self):
         run_brain_cycle = load_brain_cycle()
         tool_message = {

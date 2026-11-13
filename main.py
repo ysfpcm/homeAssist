@@ -131,12 +131,18 @@ def process_message(user_input, history):
         ])
     
     history[0]["content"] = f"{BASE_SYSTEM_PROMPT}\n\n{current_context}\n{notes_str}"
+    turn_start = len(history)
     history.append({"role": "user", "content": user_input})
     
     response_text = run_brain_cycle(history, tools=NATIVE_TOOLS)
     
     if len(history) > 16:
-        history[:] = [history[0]] + history[-15:]
+        start = next(
+            (index for index in range(len(history) - 15, turn_start + 1)
+             if history[index].get("role") == "user" and history[index - 1].get("role") != "tool"),
+            turn_start,
+        )
+        history[:] = [history[0]] + history[start:]
         
     return response_text
 
