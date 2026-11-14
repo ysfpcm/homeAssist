@@ -207,6 +207,12 @@ def monitor_webcam_loop(device_index=0, motion_threshold=10000, cooldown_seconds
         
     print("[System - Eyes]: Initializing live webcam monitoring...")
     cap = cv2.VideoCapture(device_index)
+    try:
+        _monitor_webcam_capture(cap, device_index, motion_threshold, cooldown_seconds, on_detection_callback, stop_event)
+    finally:
+        cap.release()
+
+def _monitor_webcam_capture(cap, device_index, motion_threshold, cooldown_seconds, on_detection_callback, stop_event):
     if not cap.isOpened():
         print("[Eyes - Error]: Could not open webcam.")
         return
@@ -215,7 +221,6 @@ def monitor_webcam_loop(device_index=0, motion_threshold=10000, cooldown_seconds
     ret, prev_frame = cap.read()
     if not ret:
         print("[Eyes - Error]: Failed to read from webcam.")
-        cap.release()
         return
 
     prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
@@ -305,7 +310,6 @@ def monitor_webcam_loop(device_index=0, motion_threshold=10000, cooldown_seconds
         # Sleep a bit to not hog CPU entirely for video capture loop
         time.sleep(0.1)
 
-    cap.release()
     print("[System - Eyes]: Webcam monitoring stopped.")
 
 def process_motion_event(camera_name, simulated_person=None):
