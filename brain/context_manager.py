@@ -83,6 +83,7 @@ def get_live_traffic(destination):
                 if element['status'] == 'OK':
                     duration_in_traffic = element.get('duration_in_traffic', element.get('duration', {})).get('text', 'Unknown mins')
                     return f"Live Traffic to {resolved_name} ({resolved_address}): {duration_in_traffic}"
+                return f"Traffic API Error: {element['status']}"
             
             return f"Traffic API Error: {data.get('status', 'Unknown Error')}"
     except Exception as e:
