@@ -268,6 +268,7 @@ class WakeWordListener:
             self.thread.start()
             print(f"[System - Ears]: Wake word listener active (Listening for: {self.keyword})")
         except Exception as e:
+            self.stop()
             print(f"[System - Ears]: Failed to start wake word listener: {e}")
 
     def stop(self):
@@ -277,12 +278,15 @@ class WakeWordListener:
                 self.audio_stream.close()
             except:
                 pass
+            self.audio_stream = None
         if self.pa:
             try:
                 self.pa.terminate()
             except:
                 pass
+            self.pa = None
         self.model = None
+        self.resolved_model_name = None
             
     def _listen_loop(self):
         import numpy as np
