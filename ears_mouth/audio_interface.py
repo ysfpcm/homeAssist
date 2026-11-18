@@ -317,3 +317,6 @@ class WakeWordListener:
             except Exception as e:
                 if not self.is_listening:
                     break
+                print(f"[System - Ears]: Wake word listener failed: {e}")
+                self.stop()
+                break
