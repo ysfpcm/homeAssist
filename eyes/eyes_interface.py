@@ -367,8 +367,16 @@ def _generate_detection_result(recognized_person, role, source_name):
     print(f"[System - Eyes]: Recognized '{recognized_person}' ({role}) from source '{source_name}'.")
     database.log_event("face_recognized", source_name, f"Recognized {recognized_person} ({role})")
 
-    # Fetch notes for this person
     notes = database.get_active_notes(target_person=recognized_person)
+    if role and role.strip():
+        notes_by_id = {note["id"]: note for note in notes}
+        for note in database.get_active_notes(target_person=role):
+            notes_by_id[note["id"]] = note
+        notes = sorted(
+            notes_by_id.values(),
+            key=lambda note: (note["created_at"] or "", note["id"]),
+            reverse=True,
+        )
     notes_summary = []
     for note in notes:
         notes_summary.append(note["content"])
