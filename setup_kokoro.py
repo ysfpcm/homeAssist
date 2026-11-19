@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 import urllib.request
 
 MODEL_DIR = "models/kokoro"
@@ -18,7 +19,16 @@ def download_file(url, dest_path):
             sys.stdout.write(f"\rDownloaded {read_so_far // (1024*1024)}MB")
             sys.stdout.flush()
             
-    urllib.request.urlretrieve(url, dest_path, reporthook=report_hook)
+    with tempfile.NamedTemporaryFile(dir=os.path.dirname(os.path.abspath(dest_path)), delete=False) as temporary_file:
+        temporary_path = temporary_file.name
+    try:
+        urllib.request.urlretrieve(url, temporary_path, reporthook=report_hook)
+        os.replace(temporary_path, dest_path)
+    finally:
+        try:
+            os.unlink(temporary_path)
+        except FileNotFoundError:
+            pass
     print("\nDownload complete!\n")
 
 def main():
