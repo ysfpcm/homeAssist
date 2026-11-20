@@ -1,9 +1,11 @@
+import contextlib
+import io
 import runpy
 import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 from brain import database
 
@@ -35,6 +37,40 @@ def load_brain_cycle():
 
 
 class BrainCycleTests(unittest.TestCase):
+    def test_wake_word_session_does_not_dismiss_partial_words(self):
+        cases = (
+            ("It's quite cold", "GoOdByE!"),
+            ("The guest is exiting", "exit."),
+            ("I'm quitting my job", "quit!"),
+            ("Goodbyes are hard", "bye, Gemma"),
+        )
+        for transcription, dismissal in cases:
+            with self.subTest(transcription=transcription):
+                run_brain_cycle = load_brain_cycle()
+                app = run_brain_cycle.__globals__
+                listener = Mock()
+                listener_factory = Mock(return_value=listener)
+                transcribe = Mock(side_effect=[transcription, dismissal])
+                process = Mock(return_value="Understood.")
+                speak = Mock()
+                replacements = {
+                    "sr": types.SimpleNamespace(Microphone=MagicMock()),
+                    "WakeWordListener": listener_factory,
+                    "listen_and_transcribe": transcribe,
+                    "process_message": process,
+                    "speak": speak,
+                }
+                with patch.dict(app, replacements), patch.object(database, "init_db"):
+                    with patch("builtins.input", side_effect=["y", "exit"]):
+                        with patch("threading.Thread"), contextlib.redirect_stdout(io.StringIO()):
+                            app["main"]()
+                            speak.reset_mock()
+                            listener_factory.call_args.kwargs["callback"]()
+
+                process.assert_called_once_with(transcription, app["console_history"])
+                self.assertEqual(transcribe.call_count, 2)
+                self.assertEqual(speak.call_args_list, [call("Understood."), call("Goodbye!")])
+
     def test_history_trimming_drops_complete_old_tool_turn(self):
         run_brain_cycle = load_brain_cycle()
         process_message = run_brain_cycle.__globals__["process_message"]
