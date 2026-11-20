@@ -89,6 +89,67 @@ class WakeWordStartupTests(unittest.TestCase):
         self.assertIsNone(self.listener.audio_stream)
         self.assertIsNone(self.listener.pa)
 
+    def test_listening_error_stops_and_releases_microphone(self):
+        self.start(Mock())
+
+        def stop_after_retry(*args, **kwargs):
+            if self.stream.read.call_count == 1:
+                raise OSError("microphone disconnected")
+            self.listener.is_listening = False
+            return b""
+
+        self.stream.read.side_effect = stop_after_retry
+        output = io.StringIO()
+        with patch.dict(sys.modules, self.modules), contextlib.redirect_stdout(output):
+            self.listener._listen_loop()
+
+        self.stream.read.assert_called_once()
+        self.stream.close.assert_called_once_with()
+        self.audio.terminate.assert_called_once_with()
+        self.assertFalse(self.listener.is_listening)
+        self.assertIsNone(self.listener.audio_stream)
+        self.assertIsNone(self.listener.model)
+        self.assertIn("microphone disconnected", output.getvalue())
+
+        retry_thread = Mock()
+        self.start(retry_thread)
+        self.assertTrue(self.listener.is_listening)
+        retry_thread.start.assert_called_once_with()
+        self.listener.stop()
+
+    def test_model_error_stops_and_releases_microphone(self):
+        self.start(Mock())
+        self.stream.read.return_value = b"audio"
+        self.modules["numpy"].frombuffer = Mock(return_value="samples")
+        self.modules["numpy"].int16 = object()
+        self.model.predict.side_effect = RuntimeError("prediction failed")
+
+        output = io.StringIO()
+        with patch.dict(sys.modules, self.modules), contextlib.redirect_stdout(output):
+            self.listener._listen_loop()
+
+        self.model.predict.assert_called_once_with("samples")
+        self.stream.close.assert_called_once_with()
+        self.audio.terminate.assert_called_once_with()
+        self.assertFalse(self.listener.is_listening)
+        self.assertIn("prediction failed", output.getvalue())
+
+    def test_read_error_during_stop_does_not_report_failure(self):
+        self.start(Mock())
+
+        def stop_during_read(*args, **kwargs):
+            self.listener.stop()
+            raise OSError("stream closed")
+
+        self.stream.read.side_effect = stop_during_read
+        output = io.StringIO()
+        with patch.dict(sys.modules, self.modules), contextlib.redirect_stdout(output):
+            self.listener._listen_loop()
+
+        self.stream.close.assert_called_once_with()
+        self.audio.terminate.assert_called_once_with()
+        self.assertNotIn("Wake word listener failed", output.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
