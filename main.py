@@ -233,7 +233,7 @@ def main():
                         print(f"You said: {transcription}")
                         
                         # Exit if user says goodbye/exit
-                        if any(dw in transcription.lower() for dw in DISMISSAL_WORDS):
+                        if any(word in DISMISSAL_WORDS for word in re.findall(r"\b\w+\b", transcription.lower())):
                             speak("Goodbye!")
                             break
                         
