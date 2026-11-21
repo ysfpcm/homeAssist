@@ -3,6 +3,8 @@ import urllib.request
 import urllib.error
 import os
 
+OLLAMA_TIMEOUT_SECONDS = 120
+
 NATIVE_TOOLS = [
     {
         "type": "function",
@@ -148,7 +150,7 @@ def _call_ollama(conversation_history, tools, model="llama3.1:8b"):
 
     try:
         req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as response:
             result = json.loads(response.read().decode('utf-8'))
             return result.get('message', {})
     except urllib.error.HTTPError as e:
@@ -158,6 +160,9 @@ def _call_ollama(conversation_history, tools, model="llama3.1:8b"):
             return _call_ollama(conversation_history, tools=None, model=model)
         print(f"[Error]: Ollama API returned an error: {e.code} - {error_msg}")
         return {"role": "assistant", "content": f"Ollama returned an error: {error_msg}"}
-    except urllib.error.URLError as e:
+    except (urllib.error.URLError, TimeoutError) as e:
+        if isinstance(e, TimeoutError) or isinstance(getattr(e, "reason", None), TimeoutError):
+            print(f"[Error]: Ollama request timed out: {e}")
+            return {"role": "assistant", "content": "My local brain took too long to respond. Please try again."}
         print(f"[Error]: Could not connect to Ollama. Is it running? Details: {e}")
         return {"role": "assistant", "content": "I'm having trouble connecting to my local brain. Please check if Ollama is running."}
