@@ -33,6 +33,12 @@ telegram_history = []
 def run_brain_cycle(history, tools=None):
     """Query the brain, execute any returned tools, and return the final text response."""
     assistant_message = query_brain(history, tools=tools)
+
+    if not tools:
+        assistant_message = dict(assistant_message)
+        assistant_message.pop("tool_calls", None)
+        history.append(assistant_message)
+        return assistant_message.get("content") or ""
     
     # Check for raw JSON tool call fallback in content
     content = (assistant_message.get("content") or "").strip()

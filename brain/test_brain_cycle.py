@@ -195,7 +195,7 @@ class BrainCycleTests(unittest.TestCase):
         ])
         with patch.dict(run_brain_cycle.__globals__, {"query_brain": query}):
             with patch.object(database, "get_active_notes", return_value=[]):
-                self.assertEqual(run_brain_cycle([]), "")
+                self.assertEqual(run_brain_cycle([], tools=[{"type": "function"}]), "")
 
     def test_json_fallback_still_responds(self):
         run_brain_cycle = load_brain_cycle()
@@ -204,7 +204,54 @@ class BrainCycleTests(unittest.TestCase):
             "content": '```json\n{"name": "respond_to_user", "parameters": {"response_text": "Hello"}}\n```',
         })
         with patch.dict(run_brain_cycle.__globals__, {"query_brain": query}):
-            self.assertEqual(run_brain_cycle([]), "Hello")
+            self.assertEqual(run_brain_cycle([], tools=[{"type": "function"}]), "Hello")
+
+    def test_scheduler_without_tools_never_executes_model_tool_calls(self):
+        raw_call = '{"name": "save_note", "parameters": {"category": "reminder", "content": "test"}}'
+        messages = (
+            {"role": "assistant", "content": raw_call},
+            {"role": "assistant", "content": "Welcome home.", "tool_calls": [
+                {"id": "call_1", "function": {"name": "save_note", "arguments": {
+                    "category": "reminder", "content": "test",
+                }}},
+            ]},
+            {"role": "assistant", "content": None, "tool_calls": [
+                {"id": "call_2", "function": {"name": "save_note", "arguments": {
+                    "category": "reminder", "content": "test",
+                }}},
+            ]},
+        )
+        for message in messages:
+            with self.subTest(message=message):
+                run_brain_cycle = load_brain_cycle()
+                scheduler_query = run_brain_cycle.__globals__["scheduler_brain_query"]
+                query = Mock(side_effect=[message.copy(), {"role": "assistant", "content": "Saved."}])
+                history = [{"role": "user", "content": "Welcome someone home."}]
+                with patch.dict(run_brain_cycle.__globals__, {"query_brain": query}):
+                    with patch.object(database, "save_note", return_value=42) as save_note:
+                        result = scheduler_query(history, trigger_tools=False)
+
+                save_note.assert_not_called()
+                query.assert_called_once_with(history, tools=None)
+                self.assertEqual(result, message["content"] or "")
+                self.assertNotIn("tool_calls", history[-1])
+                self.assertEqual(len(history), 2)
+
+    def test_empty_tool_list_disables_tool_execution(self):
+        run_brain_cycle = load_brain_cycle()
+        query = Mock(return_value={
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [{"id": "call_1", "function": {"name": "get_active_notes", "arguments": {}}}],
+        })
+        history = []
+        with patch.dict(run_brain_cycle.__globals__, {"query_brain": query}):
+            with patch.object(database, "get_active_notes") as get_notes:
+                self.assertEqual(run_brain_cycle(history, tools=[]), "")
+
+        get_notes.assert_not_called()
+        query.assert_called_once_with(history, tools=[])
+        self.assertNotIn("tool_calls", history[-1])
 
     def test_response_tool_does_not_skip_other_tool_calls(self):
         response_call = {
