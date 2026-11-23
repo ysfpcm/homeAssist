@@ -151,8 +151,16 @@ def _call_ollama(conversation_history, tools, model="llama3.1:8b"):
     try:
         req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
         with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as response:
-            result = json.loads(response.read().decode('utf-8'))
-            return result.get('message', {})
+            try:
+                result = json.loads(response.read().decode('utf-8'))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                result = None
+            message = result.get('message') if isinstance(result, dict) else None
+            if (not isinstance(message, dict) or message.get('role') != 'assistant'
+                    or not isinstance(message.get('content'), (str, type(None)))):
+                print("[Error]: Ollama returned an invalid response.")
+                return {"role": "assistant", "content": "My local brain returned an invalid response. Please try again."}
+            return message
     except urllib.error.HTTPError as e:
         error_msg = e.read().decode('utf-8')
         if e.code == 400 and "does not support tools" in error_msg and tools:
